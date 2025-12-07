@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>システム入替スケジュール管理</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            padding: 20px;
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            font-size: 10px; 
+        }
+        th, td { 
+            border: 1px solid #ddd; 
+            padding: 4px; 
+            text-align: center; 
+        }
+        .navigation {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .december { background-color: #e6f2e6; }
+        .january { background-color: #e6e6f2; }
+        .february { background-color: #f2e6f2; }
+        .march { background-color: #f2f0e6; }
+        .saturday { background-color: #d9e6f2; }
+        .sunday, .holiday { background-color: #f2d9d9; }
+        .editable { 
+            cursor: pointer;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 50px;
+        }
+        .editable:hover { background-color: #f9f9f9; }
+    </style>
+</head>
+<body>
+    <div class="navigation">
+        <button id="prevMonth">前の月</button>
+        <h1 id="monthTitle">2025年12月</h1>
+        <button id="nextMonth">次の月</button>
+    </div>
+    
+    <table id="scheduleTable">
+        <thead>
+            <tr>
+                <th rowspan="2">メンバー</th>
+                <th colspan="31">月間スケジュール</th>
+            </tr>
+            <tr id="dateRow">
+                <!-- 日付と曜日は JavaScript で動的に生成 -->
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>上門</td></tr>
+            <tr><td>安里</td></tr>
+            <tr><td>金城</td></tr>
+            <tr><td>馬場</td></tr>
+            <tr><td>大城</td></tr>
+            <tr><td>川上</td></tr>
+            <tr><td>清水</td></tr>
+        </tbody>
+    </table>
+
+    <script>
+        const months = [
+            { month: 12, year: 2025, days: 31, className: 'december' },
+            { month: 1, year: 2026, days: 31, className: 'january' },
+            { month: 2, year: 2026, days: 28, className: 'february' },
+            { month: 3, year: 2026, days: 31, className: 'march' }
+        ];
+
+        const holidays = {
+            '2025-12-31': '大晦日',
+            '2026-01-01': '元日',
+            '2026-01-12': '成人の日',
+            '2026-02-11': '建国記念の日',
+            '2026-02-23': '天皇誕生日',
+            '2026-03-20': '春分の日'
+        };
+
+        let currentMonthIndex = 0;
+
+        function isHoliday(dateString) {
+            return holidays[dateString] !== undefined;
+        }
+
+        function generateCalendar(monthData) {
+            const dateRow = document.getElementById('dateRow');
+            const tbody = document.querySelector('tbody');
+            dateRow.innerHTML = ''; // 既存の日付行をクリア
+            
+            // 日付と曜日の行を生成
+            for (let day = 1; day <= monthData.days; day++) {
+                const currentDate = new Date(monthData.year, monthData.month - 1, day);
+                const dateString = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+                const weekDay = ['日', '月', '火', '水', '木', '金', '土'][currentDate.getDay()];
+                
+                const th = document.createElement('th');
+                th.textContent = `${day}(${weekDay})`;
+                th.classList.add(monthData.className);
+                
+                if (currentDate.getDay() === 6) th.classList.add('saturday');
+                if (currentDate.getDay() === 0 || isHoliday(dateString)) th.classList.add('sunday', 'holiday');
+                
+                dateRow.appendChild(th);
+            }
+
+            // メンバーの行を生成
+            const memberRows = tbody.querySelectorAll('tr');
+            memberRows.forEach(row => {
+                // 既存のセルをクリア
+                while (row.cells.length > 1) {
+                    row.deleteCell(1);
+                }
+
+                // 新しいセルを追加
+                for (let day = 1; day <= monthData.days; day++) {
+                    const cell = row.insertCell(-1);
+                    cell.classList.add('editable', monthData.className);
+                    
+                    const currentDate = new Date(monthData.year, monthData.month - 1, day);
+                    if (currentDate.getDay() === 6) cell.classList.add('saturday');
+                    if (currentDate.getDay() === 0 || isHoliday(`${monthData.year}-${String(monthData.month).padStart(2, '0')}-${String(day).padStart(2, '0')}`)) {
+                        cell.classList.add('sunday', 'holiday');
+                    }
+                }
+            });
+
+            // 編集可能セルにイベントリスナーを追加
+            const editableCells = document.querySelectorAll('.editable');
+            editableCells.forEach(cell => {
+                cell.addEventListener('click', () => {
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.value = cell.textContent;
+                    
+                    input.addEventListener('blur', () => {
+                        cell.textContent = input.value;
+                        saveSchedule();
+                    });
+                    
+                    input.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') {
+                            cell.textContent = input.value;
+                            saveSchedule();
+                        }
+                    });
+                    
+                    cell.innerHTML = '';
+                    cell.appendChild(input);
+                    input.focus();
+                });
+            });
+
+            // 月のタイトルを更新
+            document.getElementById('monthTitle').textContent = `${monthData.year}年${monthData.month}月`;
+        }
+
+        function saveSchedule() {
+            const scheduleData = JSON.parse(localStorage.getItem('systemReplacementSchedule') || '{}');
+            const currentMonth = months[currentMonthIndex];
+            const monthKey = `${currentMonth.year}-${currentMonth.month}`;
+            
+            scheduleData[monthKey] = {};
+            const rows = document.querySelectorAll('tbody tr');
+            
+            rows.forEach(row => {
+                const memberName = row.cells[0].textContent;
+                scheduleData[monthKey][memberName] = [];
+                
+                for (let i = 1; i < row.cells.length; i++) {
+                    scheduleData[monthKey][memberName].push(row.cells[i].textContent);
+                }
+            });
+            
+            localStorage.setItem('systemReplacementSchedule', JSON.stringify(scheduleData));
+        }
+
+        function loadSchedule() {
+            const savedSchedule = JSON.parse(localStorage.getItem('systemReplacementSchedule') || '{}');
+            const currentMonth = months[currentMonthIndex];
+            const monthKey = `${currentMonth.year}-${currentMonth.month}`;
+            
+            if (savedSchedule[monthKey]) {
+                const rows = document.querySelectorAll('tbody tr');
+                
+                rows.forEach(row => {
+                    const memberName = row.cells[0].textContent;
+                    
+                    if (savedSchedule[monthKey][memberName]) {
+                        for (let i = 1; i < row.cells.length; i++) {
+                            row.cells[i].textContent = savedSchedule[monthKey][memberName][i-1] || '';
+                        }
+                    }
+                });
+            }
+        }
+
+        // 月切り替えイベント
+        document.getElementById('prevMonth').addEventListener('click', () => {
+            if (currentMonthIndex > 0) {
+                currentMonthIndex--;
+                generateCalendar(months[currentMonthIndex]);
+                loadSchedule();
+            }
+        });
+
+        document.getElementById('nextMonth').addEventListener('click', () => {
+            if (currentMonthIndex < months.length - 1) {
+                currentMonthIndex++;
+                generateCalendar(months[currentMonthIndex]);
+                loadSchedule();
+            }
+        });
+
+        // ページ読み込み時に実行
+        document.addEventListener('DOMContentLoaded', () => {
+            generateCalendar(months[currentMonthIndex]);
+            loadSchedule();
+        });
+    </script>
+</body>
+</html>
